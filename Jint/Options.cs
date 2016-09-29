@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Jint.Runtime.Interop;
 
 namespace Jint
@@ -20,7 +21,8 @@ namespace Jint
         private TimeSpan _timeoutInterval;
         private CultureInfo _culture = CultureInfo.CurrentCulture;
         private TimeZoneInfo _localTimeZone = TimeZoneInfo.Local;
-        private List<Assembly> _lookupAssemblies = new List<Assembly>(); 
+        private List<Assembly> _lookupAssemblies = new List<Assembly>();
+		private Regex _allowedClrTypes;
 
         /// <summary>
         /// When called, doesn't initialize the global scope.
@@ -122,7 +124,13 @@ namespace Jint
             return this;
         }
 
-        internal bool _IsGlobalDiscarded => _discardGlobal;
+		public Options AllowedClrTypes(Regex allowedTypes)
+		{
+			_allowedClrTypes = allowedTypes;
+			return this;
+		}
+
+		internal bool _IsGlobalDiscarded => _discardGlobal;
 
         internal bool _IsStrict => _strict;
 
@@ -145,5 +153,7 @@ namespace Jint
         internal CultureInfo _Culture => _culture;
 
         internal TimeZoneInfo _LocalTimeZone => _localTimeZone;
+
+		internal Regex _AllowedClrTypes => _allowedClrTypes;
     }
 }
