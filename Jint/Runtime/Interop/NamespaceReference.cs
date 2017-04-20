@@ -93,50 +93,47 @@ namespace Jint.Runtime.Interop
                 return TypeReference.CreateTypeReference(Engine, type);
             }
 
-			if (Engine.Options._AllowedClrTypes == null || Engine.Options._AllowedClrTypes.IsMatch(path))
+			// search for type in mscorlib
+			type = Type.GetType(path);
+			if (type != null && (Engine.Options._AllowedClrTypes == null || Engine.Options._AllowedClrTypes.IsMatch(path)))
 			{
-				// search for type in mscorlib
-				type = Type.GetType(path);
-				if (type != null)
+				Engine.TypeCache.Add(path, type);
+				return TypeReference.CreateTypeReference(Engine, type);
+			}
+
+			// search in loaded assemblies
+			foreach (var assembly in new[] { Assembly.GetCallingAssembly(), Assembly.GetExecutingAssembly() }.Distinct())
+			{
+				type = assembly.GetType(path);
+				if (type != null && (Engine.Options._AllowedClrTypes == null || Engine.Options._AllowedClrTypes.IsMatch(path)))
+				{
+					Engine.TypeCache.Add(path, type);
+					return TypeReference.CreateTypeReference(Engine, type);
+				}
+			}
+
+			// search in lookup assemblies
+			foreach (var assembly in Engine.Options._LookupAssemblies)
+			{
+				type = assembly.GetType(path);
+				if (type != null && (Engine.Options._AllowedClrTypes == null || Engine.Options._AllowedClrTypes.IsMatch(path)))
 				{
 					Engine.TypeCache.Add(path, type);
 					return TypeReference.CreateTypeReference(Engine, type);
 				}
 
-				// search in loaded assemblies
-				foreach (var assembly in new[] { Assembly.GetCallingAssembly(), Assembly.GetExecutingAssembly() }.Distinct())
-				{
-					type = assembly.GetType(path);
-					if (type != null)
+				var lastPeriodPos = path.LastIndexOf(".", StringComparison.Ordinal);
+				var trimPath = path.Substring(0, lastPeriodPos);
+				type = GetType(assembly, trimPath);
+				if (type != null && (Engine.Options._AllowedClrTypes == null || Engine.Options._AllowedClrTypes.IsMatch(path)))
+					foreach (Type nType in GetAllNestedTypes(type))
 					{
-						Engine.TypeCache.Add(path, type);
-						return TypeReference.CreateTypeReference(Engine, type);
-					}
-				}
-
-				// search in lookup assemblies
-				foreach (var assembly in Engine.Options._LookupAssemblies)
-				{
-					type = assembly.GetType(path);
-					if (type != null)
-					{
-						Engine.TypeCache.Add(path, type);
-						return TypeReference.CreateTypeReference(Engine, type);
-					}
-
-					var lastPeriodPos = path.LastIndexOf(".", StringComparison.Ordinal);
-					var trimPath = path.Substring(0, lastPeriodPos);
-					type = GetType(assembly, trimPath);
-					if (type != null)
-						foreach (Type nType in GetAllNestedTypes(type))
+						if (nType.FullName.Replace("+", ".").Equals(path.Replace("+", ".")))
 						{
-							if (nType.FullName.Replace("+", ".").Equals(path.Replace("+", ".")))
-							{
-								Engine.TypeCache.Add(path.Replace("+", "."), nType);
-								return TypeReference.CreateTypeReference(Engine, nType);
-							}
+							Engine.TypeCache.Add(path.Replace("+", "."), nType);
+							return TypeReference.CreateTypeReference(Engine, nType);
 						}
-				}
+					}
 			}
 
             // the new path doesn't represent a known class, thus return a new namespace instance
