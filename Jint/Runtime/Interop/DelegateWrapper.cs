@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using Jint.Native;
 using Jint.Native.Function;
 
@@ -91,8 +92,22 @@ namespace Jint.Runtime.Interop
                 }
                 parameters[paramsArgumentIndex] = paramsParameter;
             }
+            try
+            {
+                return JsValue.FromObject(Engine, _d.DynamicInvoke(parameters));
+            }
+            catch (TargetInvocationException exception)
+            {
+                var meaningfulException = exception.InnerException ?? exception;
+                var handler = Engine.Options._ClrExceptionsHandler;
 
-            return JsValue.FromObject(Engine, _d.DynamicInvoke(parameters));
+                if (handler != null && handler(meaningfulException))
+                {
+                    throw new JavaScriptException(Engine.Error, meaningfulException.Message);
+                }
+
+                throw meaningfulException;         
+            }
         }
     }
 }
