@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -23,7 +23,8 @@ namespace Jint
         private TimeZoneInfo _localTimeZone = TimeZoneInfo.Local;
         private List<Assembly> _lookupAssemblies = new List<Assembly>();
         private Predicate<Exception> _clrExceptionsHandler;
-        private Regex _allowedClrTypes;
+        private IReferenceResolver _referenceResolver;
+		private Regex _allowedClrTypes;
 
         /// <summary>
         /// When called, doesn't initialize the global scope.
@@ -147,13 +148,19 @@ namespace Jint
             return this;
         }
 
+        public Options SetReferencesResolver(IReferenceResolver resolver)
+        {
+            _referenceResolver = resolver;
+            return this;
+        }
+
 		public Options AllowedClrTypes(Regex allowedTypes)
 		{
 			_allowedClrTypes = allowedTypes;
 			return this;
 		}
 
-		internal bool _IsGlobalDiscarded => _discardGlobal;
+        internal bool _IsGlobalDiscarded => _discardGlobal;
 
         internal bool _IsStrict => _strict;
 
@@ -179,6 +186,9 @@ namespace Jint
 
         internal TimeZoneInfo _LocalTimeZone => _localTimeZone;
 
+        internal IReferenceResolver  _ReferenceResolver => _referenceResolver;
+
 		internal Regex _AllowedClrTypes => _allowedClrTypes;
+
     }
 }

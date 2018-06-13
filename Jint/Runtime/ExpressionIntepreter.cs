@@ -3,9 +3,11 @@ using System.Linq;
 using Jint.Native;
 using Jint.Native.Function;
 using Jint.Native.Number;
+using Jint.Native.Object;
 using Jint.Parser.Ast;
 using Jint.Runtime.Descriptors;
 using Jint.Runtime.Environments;
+using Jint.Runtime.Interop;
 using Jint.Runtime.References;
 
 namespace Jint.Runtime
@@ -381,40 +383,7 @@ namespace Jint.Runtime
 
             if (typex == typey)
             {
-                if (typex == Types.Undefined || typex == Types.Null)
-                {
-                    return true;
-                }
-
-                if (typex == Types.Number)
-                {
-                    var nx = TypeConverter.ToNumber(x);
-                    var ny = TypeConverter.ToNumber(y);
-
-                    if (double.IsNaN(nx) || double.IsNaN(ny))
-                    {
-                        return false;
-                    }
-
-                    if (nx.Equals(ny))
-                    {
-                        return true;
-                    }
-
-                    return false;
-                }
-
-                if (typex == Types.String)
-                {
-                    return TypeConverter.ToString(x) == TypeConverter.ToString(y);
-                }
-
-                if (typex == Types.Boolean)
-                {
-                    return x.AsBoolean() == y.AsBoolean();
-                }
-
-                return x == y;
+				return StrictlyEqual(x, y);
             }
 
             if (x == Null.Instance && y == Undefined.Instance)
@@ -479,10 +448,11 @@ namespace Jint.Runtime
             {
                 return true;
             }
+
             if (typea == Types.Number)
             {
-                var nx = TypeConverter.ToNumber(x);
-                var ny = TypeConverter.ToNumber(y);
+                var nx = x.AsNumber();
+                var ny = y.AsNumber();
 
                 if (double.IsNaN(nx) || double.IsNaN(ny))
                 {
@@ -496,14 +466,28 @@ namespace Jint.Runtime
 
                 return false;
             }
+
             if (typea == Types.String)
             {
-                return TypeConverter.ToString(x) == TypeConverter.ToString(y);
+                return x.AsString() == y.AsString();
             }
+
             if (typea == Types.Boolean)
             {
-                return TypeConverter.ToBoolean(x) == TypeConverter.ToBoolean(y);
+                return x.AsBoolean() == y.AsBoolean();
             }
+
+			if (typea == Types.Object)
+			{
+				var xw = x.AsObject() as IObjectWrapper;
+
+				if (xw != null)
+				{
+					var yw = y.AsObject() as IObjectWrapper;
+					return Object.Equals(xw.Target, yw.Target);
+				}
+			}
+
             return x == y;
         }
 
@@ -774,7 +758,7 @@ namespace Jint.Runtime
 
             var propertyNameReference = EvaluateExpression(expression);
             var propertyNameValue = _engine.GetValue(propertyNameReference);
-            TypeConverter.CheckObjectCoercible(_engine, baseValue);
+            TypeConverter.CheckObjectCoercible(_engine, baseValue, memberExpression, baseReference);
             var propertyNameString = TypeConverter.ToString(propertyNameValue);
 
             return new Reference(baseValue, propertyNameString, StrictModeScope.IsStrictModeCode);
@@ -863,12 +847,18 @@ namespace Jint.Runtime
 
             if (func == Undefined.Instance)
             {
-                throw new JavaScriptException(_engine.TypeError, r == null ? "" : string.Format("Object has no method '{0}'", (callee as Reference).GetReferencedName()));
+                throw new JavaScriptException(_engine.TypeError, r == null ? "" : string.Format("Object has no method '{0}'", r.GetReferencedName()));
             }
 
             if (!func.IsObject())
             {
-                throw new JavaScriptException(_engine.TypeError, r == null ? "" : string.Format("Property '{0}' of object is not a function", (callee as Reference).GetReferencedName()));
+
+                if (_engine.Options._ReferenceResolver == null ||
+                    !_engine.Options._ReferenceResolver.TryGetCallable(_engine, callee, out func))
+                {
+                    throw new JavaScriptException(_engine.TypeError,
+                        r == null ? "" : string.Format("Property '{0}' of object is not a function", r.GetReferencedName()));
+                }
             }
 
             var callable = func.TryCast<ICallable>();

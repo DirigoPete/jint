@@ -84,7 +84,22 @@ namespace Jint.Runtime.Interop
                 }
 
                 // todo: cache method info
-                return JsValue.FromObject(Engine, method.Invoke(thisObject.ToObject(), parameters.ToArray()));
+                try
+                {
+                    return JsValue.FromObject(Engine, method.Invoke(thisObject.ToObject(), parameters.ToArray()));
+                }
+                catch (TargetInvocationException exception)
+                {
+                    var meaningfulException = exception.InnerException ?? exception;
+                    var handler = Engine.Options._ClrExceptionsHandler;
+
+                    if (handler != null && handler(meaningfulException))
+                    {
+                        throw new JavaScriptException(Engine.Error, meaningfulException.Message);
+                    }
+
+                    throw meaningfulException;
+                }
             }
 
             throw new JavaScriptException(Engine.TypeError, "No public methods with the specified arguments were found.");
@@ -98,7 +113,7 @@ namespace Jint.Runtime.Interop
             foreach (var methodInfo in methodInfos)
             {
                 var parameters = methodInfo.GetParameters();
-                if (!parameters.Any(p => Attribute.IsDefined(p, typeof(ParamArrayAttribute))))
+                if (!parameters.Any(p => p.HasAttribute<ParamArrayAttribute>()))
                     continue;
 
                 var nonParamsArgumentsCount = parameters.Length - 1;
